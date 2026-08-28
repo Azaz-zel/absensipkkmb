@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+
+    /* Brand gold, anchored on Ralph de Vinca's #B08D57 at the 600 step (the app's primary accent shade). */
+    --color-gold-50: #fbf8f3;
+    --color-gold-100: #f4ebda;
+    --color-gold-200: #e8d6b8;
+    --color-gold-300: #d9bd90;
+    --color-gold-400: #c7a473;
+    --color-gold-500: #bc9761;
+    --color-gold-600: #b08d57;
+    --color-gold-700: #8c7146;
+    --color-gold-800: #695537;
+    --color-gold-900: #453824;
+
+    /* Warm neutral scale replacing Tailwind's default cool-gray slate, anchored on the confirmed
+       cream/soft-beige/muted/charcoal values shared across the user's other projects. */
+    --color-slate-50: #f7f4ee;
+    --color-slate-100: #efeae0;
+    --color-slate-200: #ded7ca;
+    --color-slate-300: #c9c0ae;
+    --color-slate-400: #aba192;
+    --color-slate-500: #8c8274;
+    --color-slate-600: #777168;
+    --color-slate-700: #5c564c;
+    --color-slate-800: #3d3833;
+    --color-slate-900: #1c1a17;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.75rem) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-toast-in {
+    animation: toast-in 0.25s ease-out;
+}
