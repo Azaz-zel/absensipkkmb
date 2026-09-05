@@ -66,56 +66,6 @@
         <script>document.getElementById('dialog-edit-mahasiswa').showModal();</script>
     @endif
 
-    <div class="mb-5 rounded-2xl border border-rose-200 bg-rose-50/40 p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <p class="text-sm font-medium text-rose-700">Zona Berbahaya</p>
-                <p class="text-xs text-slate-500">Menghapus data mahasiswa tidak dapat dibatalkan dari sini.</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                @if ($filteredByKelas && $selectedKelas)
-                    <button type="button" onclick="openConfirmDialog('dialog-hapus-kelas')"
-                            class="rounded-full border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100">
-                        Hapus Semua Data Kelas {{ $selectedKelas->nama_kelas }}
-                    </button>
-                @endif
-
-                <button type="button" onclick="openConfirmDialog('dialog-hapus-semua')"
-                        class="rounded-full border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100">
-                    Hapus Seluruh Data Mahasiswa
-                </button>
-            </div>
-        </div>
-    </div>
-
-    @if ($filteredByKelas && $selectedKelas)
-        @php $confirmKelasPhrase = 'HAPUS KELAS '.strtoupper($selectedKelas->nama_kelas); @endphp
-        <dialog id="dialog-hapus-kelas" class="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg backdrop:bg-slate-900/60">
-            <form method="POST" action="{{ route('mahasiswa.destroyByKelas', $selectedKelas) }}">
-                @csrf
-                @method('DELETE')
-                <h3 class="font-serif text-xl font-semibold text-slate-900">Hapus Semua Data Kelas {{ $selectedKelas->nama_kelas }}</h3>
-                <p class="mt-2 text-sm text-slate-600">
-                    Tindakan ini akan menghapus <strong>{{ $mahasiswa->count() }}</strong> data mahasiswa di kelas {{ $selectedKelas->nama_kelas }} dan tidak dapat dibatalkan.
-                    Ketik <strong>{{ $confirmKelasPhrase }}</strong> untuk melanjutkan.
-                </p>
-                <input type="text" data-confirm-input data-confirm-target="{{ $confirmKelasPhrase }}" autocomplete="off"
-                       class="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                       placeholder="{{ $confirmKelasPhrase }}">
-                <div class="mt-4 flex justify-end gap-2">
-                    <button type="button" onclick="document.getElementById('dialog-hapus-kelas').close()"
-                            class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                        Batal
-                    </button>
-                    <button type="submit" disabled data-confirm-button
-                            class="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
-                        Ya, Hapus
-                    </button>
-                </div>
-            </form>
-        </dialog>
-    @endif
-
     <dialog id="dialog-hapus-semua" class="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-200 bg-white p-6 shadow-lg backdrop:bg-slate-900/60">
         <form method="POST" action="{{ route('mahasiswa.destroyAll') }}">
             @csrf
@@ -194,26 +144,52 @@
         </form>
     </x-card>
 
+    <form method="POST" action="{{ route('mahasiswa.destroySelected') }}" id="form-hapus-terpilih" class="hidden">
+        @csrf
+        @method('DELETE')
+    </form>
+
     <x-card>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 lg:px-6">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Daftar Mahasiswa</p>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" id="btn-toggle-pilih-maba"
+                        class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                    Pilih Mahasiswa
+                </button>
+                <button type="button" onclick="openConfirmDialog('dialog-hapus-semua')"
+                        class="rounded-full border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100">
+                    Hapus Semua Data
+                </button>
+            </div>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="bg-slate-50/70 text-xs uppercase tracking-[0.08em] text-slate-500">
                     <tr>
+                        <th class="kolom-pilih-maba hidden w-10 px-4 py-2.5 lg:px-6">
+                            <input type="checkbox" id="pilih-semua-maba"
+                                   class="rounded border-slate-300 text-gold-600 focus:ring-gold-500">
+                        </th>
                         <th class="px-4 py-2.5 lg:px-6">Nama</th>
                         <th class="px-4 py-2.5 lg:px-6">NIM</th>
                         <th class="px-4 py-2.5 lg:px-6">Jurusan</th>
                         <th class="px-4 py-2.5 lg:px-6">Kelas</th>
-                        <th class="px-4 py-2.5 text-right lg:px-6">Aksi</th>
+                        <th class="kolom-aksi-maba hidden px-4 py-2.5 text-right lg:px-6">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($mahasiswa as $m)
-                        <tr class="transition-colors hover:bg-slate-50/60">
+                        <tr class="baris-maba transition-colors hover:bg-slate-50/60">
+                            <td class="kolom-pilih-maba hidden px-4 py-3 lg:px-6">
+                                <input type="checkbox" name="ids[]" value="{{ $m->id }}" form="form-hapus-terpilih"
+                                       class="pilih-maba rounded border-slate-300 text-gold-600 focus:ring-gold-500">
+                            </td>
                             <td class="px-4 py-3 font-medium lg:px-6">{{ $m->nama }}</td>
                             <td class="px-4 py-3 text-slate-600 lg:px-6">{{ $m->nim }}</td>
                             <td class="px-4 py-3 text-slate-600 lg:px-6">{{ $m->jurusan }}</td>
                             <td class="px-4 py-3 text-slate-600 lg:px-6">{{ $m->kelas->nama_kelas }}</td>
-                            <td class="px-4 py-3 text-right lg:px-6">
+                            <td class="kolom-aksi-maba hidden px-4 py-3 text-right lg:px-6" data-abaikan-pilih>
                                 <button type="button"
                                         onclick="openEditMahasiswaDialog({{ $m->id }}, {{ json_encode($m->nama) }}, {{ json_encode($m->nim) }}, {{ json_encode($m->jurusan) }}, {{ $m->kelas_id }})"
                                         class="mr-3 text-sm font-medium text-slate-700 hover:underline">
@@ -229,11 +205,20 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-slate-500">Belum ada data mahasiswa.</td>
+                            <td colspan="6" class="px-4 py-6 text-center text-slate-500">Belum ada data mahasiswa.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
+        </div>
+
+        <div id="bar-aksi-maba" class="hidden items-center justify-between gap-3 border-t border-slate-200 bg-rose-50/50 px-4 py-3 lg:px-6">
+            <p class="text-sm text-slate-700"><span id="jumlah-maba-terpilih">0</span> mahasiswa terpilih</p>
+            <button type="submit" form="form-hapus-terpilih"
+                    onclick="return confirm('Hapus ' + document.getElementById('jumlah-maba-terpilih').textContent + ' mahasiswa terpilih?');"
+                    class="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700">
+                Hapus Terpilih
+            </button>
         </div>
 
         @if ($filteredByKelas)
@@ -246,4 +231,76 @@
             </div>
         @endif
     </x-card>
+
+    <script>
+        (function () {
+            var tombolToggle = document.getElementById('btn-toggle-pilih-maba');
+            var kolomPilih = document.querySelectorAll('.kolom-pilih-maba');
+            var kolomAksi = document.querySelectorAll('.kolom-aksi-maba');
+            var barisMaba = document.querySelectorAll('.baris-maba');
+            var checkboxMaba = document.querySelectorAll('.pilih-maba');
+            var pilihSemua = document.getElementById('pilih-semua-maba');
+            var barAksi = document.getElementById('bar-aksi-maba');
+            var jumlahEl = document.getElementById('jumlah-maba-terpilih');
+            var modePilih = false;
+
+            function terpilih() {
+                return Array.prototype.filter.call(checkboxMaba, function (c) { return c.checked; }).length;
+            }
+
+            function perbarui() {
+                var n = terpilih();
+                jumlahEl.textContent = n;
+                barAksi.classList.toggle('hidden', n === 0);
+                barAksi.classList.toggle('flex', n > 0);
+
+                barisMaba.forEach(function (baris, i) {
+                    baris.classList.toggle('bg-rose-50/60', modePilih && checkboxMaba[i].checked);
+                });
+            }
+
+            tombolToggle.addEventListener('click', function () {
+                modePilih = !modePilih;
+                kolomPilih.forEach(function (el) { el.classList.toggle('hidden', !modePilih); });
+                kolomAksi.forEach(function (el) { el.classList.toggle('hidden', !modePilih); });
+                barisMaba.forEach(function (el) { el.classList.toggle('cursor-pointer', modePilih); });
+                tombolToggle.textContent = modePilih ? 'Batal Pilih' : 'Pilih Mahasiswa';
+
+                if (!modePilih) {
+                    checkboxMaba.forEach(function (c) { c.checked = false; });
+                    pilihSemua.checked = false;
+                }
+                perbarui();
+            });
+
+            pilihSemua.addEventListener('change', function () {
+                checkboxMaba.forEach(function (c) { c.checked = pilihSemua.checked; });
+                perbarui();
+            });
+
+            checkboxMaba.forEach(function (c) {
+                c.addEventListener('change', function () {
+                    pilihSemua.checked = terpilih() === checkboxMaba.length;
+                    perbarui();
+                });
+            });
+
+            // Seluruh baris jadi area klik supaya gampang dipencet di layar sentuh.
+            barisMaba.forEach(function (baris, i) {
+                baris.addEventListener('click', function (e) {
+                    if (!modePilih) {
+                        return;
+                    }
+                    // Biarkan tombol Edit/Hapus dan checkbox bekerja seperti biasa.
+                    if (e.target.closest('[data-abaikan-pilih]') || e.target.classList.contains('pilih-maba')) {
+                        return;
+                    }
+
+                    checkboxMaba[i].checked = !checkboxMaba[i].checked;
+                    pilihSemua.checked = terpilih() === checkboxMaba.length;
+                    perbarui();
+                });
+            });
+        })();
+    </script>
 </x-layouts.app>

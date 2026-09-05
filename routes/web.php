@@ -7,6 +7,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\KelasController;
 use App\Http\Controllers\MahasiswaController;
+use App\Http\Controllers\PoinController;
 use App\Http\Controllers\RekapController;
 use App\Http\Controllers\SesiAbsensiController;
 use App\Http\Controllers\UserController;
@@ -22,23 +23,33 @@ Route::middleware(['auth', 'account.active', 'session.idle'])->group(function ()
 
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Absensi (shared, scoped per-kelas by class.access)
-    Route::get('/absensi', [AbsensiController::class, 'index'])->name('absensi.index');
-    Route::get('/absensi/{sesi}/{kelas}', [AbsensiController::class, 'show'])
-        ->name('absensi.show')->middleware('class.access');
-    Route::put('/absensi/{sesi}/{kelas}', [AbsensiController::class, 'update'])
-        ->name('absensi.update')->middleware('class.access');
+    // Absensi & rekap: admin + PJ saja (manajer hanya urus poin)
+    Route::middleware('role:admin,pj')->group(function () {
+        // Absensi (shared, scoped per-kelas by class.access)
+        Route::get('/absensi', [AbsensiController::class, 'index'])->name('absensi.index');
+        Route::get('/absensi/{sesi}/{kelas}', [AbsensiController::class, 'show'])
+            ->name('absensi.show')->middleware('class.access');
+        Route::put('/absensi/{sesi}/{kelas}', [AbsensiController::class, 'update'])
+            ->name('absensi.update')->middleware('class.access');
 
-    // Rekap (shared, scoped for PJ inside the controller)
-    Route::get('/rekap/mahasiswa', [RekapController::class, 'perMahasiswa'])->name('rekap.mahasiswa');
-    Route::get('/rekap/kelas', [RekapController::class, 'perKelas'])->name('rekap.kelas');
-    Route::get('/rekap/mahasiswa/{mahasiswa}', [RekapController::class, 'detailMahasiswa'])->name('rekap.mahasiswa.detail');
+        // Rekap (shared, scoped for PJ inside the controller)
+        Route::get('/rekap/mahasiswa', [RekapController::class, 'perMahasiswa'])->name('rekap.mahasiswa');
+        Route::get('/rekap/kelas', [RekapController::class, 'perKelas'])->name('rekap.kelas');
+        Route::get('/rekap/mahasiswa/{mahasiswa}', [RekapController::class, 'detailMahasiswa'])->name('rekap.mahasiswa.detail');
+    });
+
+    // Poin pelanggaran: admin (kelola penuh) + manajer (cari & catat)
+    Route::middleware('role:admin,manajer')->group(function () {
+        Route::get('/poin', [PoinController::class, 'index'])->name('poin.index');
+        Route::post('/poin/{mahasiswa}/catat', [PoinController::class, 'store'])->name('poin.store');
+    });
 
     // Admin-only
     Route::middleware('role:admin')->group(function () {
         Route::resource('kelas', KelasController::class)->except('show')->parameters(['kelas' => 'kelas']);
 
         Route::resource('mahasiswa', MahasiswaController::class)->except('show');
+        Route::delete('/mahasiswa/massal/terpilih', [MahasiswaController::class, 'destroySelected'])->name('mahasiswa.destroySelected');
         Route::delete('/mahasiswa/massal/kelas/{kelas}', [MahasiswaController::class, 'destroyByKelas'])->name('mahasiswa.destroyByKelas');
         Route::delete('/mahasiswa/massal/semua', [MahasiswaController::class, 'destroyAll'])->name('mahasiswa.destroyAll');
 
@@ -62,7 +73,10 @@ Route::middleware(['auth', 'account.active', 'session.idle'])->group(function ()
         Route::resource('users', UserController::class)->except('show');
         Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggleStatus');
 
+        Route::delete('/pelanggaran/{pelanggaran}', [PoinController::class, 'destroy'])->name('pelanggaran.destroy');
+
         Route::get('/export/rekap', [ExportController::class, 'rekap'])->name('export.rekap');
+        Route::get('/export/poin', [ExportController::class, 'poin'])->name('export.poin');
         Route::get('/export/kelas/{kelas}', [ExportController::class, 'detailKelas'])->name('export.detailKelas');
     });
 });

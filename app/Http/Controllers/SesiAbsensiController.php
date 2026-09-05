@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Absensi;
 use App\Models\Kelas;
+use App\Models\Mahasiswa;
 use App\Models\SesiAbsensi;
 use App\Models\SesiKelas;
 use Illuminate\Http\RedirectResponse;
@@ -67,37 +69,41 @@ class SesiAbsensiController extends Controller
     {
         $data = $request->validate([
             'action' => ['required', Rule::in(['buka', 'tutup'])],
-            'scope' => ['required', Rule::in(['pagi', 'malam', 'semua'])],
+            'scope' => ['required', Rule::in(['pagi', 'malam', 'semua', 'terpilih'])],
+            'kelas_ids' => ['required_if:scope,terpilih', 'array'],
+            'kelas_ids.*' => ['integer', 'exists:kelas,id'],
         ]);
 
         $query = SesiKelas::where('sesi_absensi_id', $sesi->id);
 
-        if ($data['scope'] !== 'semua') {
+        if ($data['scope'] === 'terpilih') {
+            $query->whereIn('kelas_id', $data['kelas_ids']);
+        } elseif ($data['scope'] !== 'semua') {
             $query->whereHas('kelas', fn ($q) => $q->where('kategori', $data['scope']));
         }
 
-        $this->applyStatus($query, $data['action'], $request->user()->id);
+        $this->applyStatus($query, $data['action'], $request->user()->id, $sesi);
 
         return redirect()->route('sesi.show', $sesi)->with('success', 'Status sesi berhasil diperbarui secara massal.');
     }
 
     public function openClass(Request $request, SesiAbsensi $sesi, Kelas $kelas): RedirectResponse
     {
-        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'buka', $request->user()->id);
+        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'buka', $request->user()->id, $sesi);
 
         return redirect()->route('sesi.show', $sesi)->with('success', "Absensi kelas {$kelas->nama_kelas} dibuka.");
     }
 
     public function closeClass(Request $request, SesiAbsensi $sesi, Kelas $kelas): RedirectResponse
     {
-        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'tutup', $request->user()->id);
+        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'tutup', $request->user()->id, $sesi);
 
         return redirect()->route('sesi.show', $sesi)->with('success', "Absensi kelas {$kelas->nama_kelas} ditutup.");
     }
 
     public function reopen(Request $request, SesiAbsensi $sesi, Kelas $kelas): RedirectResponse
     {
-        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'buka', $request->user()->id);
+        $this->applyStatus($this->sesiKelasQuery($sesi, $kelas), 'buka', $request->user()->id, $sesi);
 
         return redirect()->route('sesi.show', $sesi)->with('success', "Absensi kelas {$kelas->nama_kelas} dibuka kembali.");
     }
@@ -107,13 +113,47 @@ class SesiAbsensiController extends Controller
         return SesiKelas::where('sesi_absensi_id', $sesi->id)->where('kelas_id', $kelas->id);
     }
 
-    private function applyStatus($query, string $action, int $userId): void
+    private function applyStatus($query, string $action, int $userId, SesiAbsensi $sesi): void
     {
         $status = $action === 'buka' ? 'dibuka' : 'ditutup';
         $extra = $action === 'buka'
             ? ['opened_at' => now(), 'opened_by' => $userId]
             : ['closed_at' => now(), 'closed_by' => $userId];
 
+        $kelasIds = $action === 'tutup' ? (clone $query)->pluck('kelas_id') : collect();
+
         $query->update(['status' => $status, ...$extra]);
+
+        if ($kelasIds->isNotEmpty()) {
+            $this->tandaiAlpaOtomatis($sesi, $kelasIds, $userId);
+        }
+    }
+
+    /**
+     * Begitu kelas ditutup, maba yang belum punya keterangan dianggap alpa.
+     * whereDoesntHave menjaga baris yang sudah ada tidak tertimpa/terduplikasi
+     * kalau sesi ditutup berkali-kali.
+     */
+    private function tandaiAlpaOtomatis(SesiAbsensi $sesi, $kelasIds, int $userId): void
+    {
+        $now = now();
+
+        $rows = Mahasiswa::whereIn('kelas_id', $kelasIds)
+            ->whereDoesntHave('absensi', fn ($q) => $q->where('sesi_absensi_id', $sesi->id))
+            ->get(['id', 'kelas_id'])
+            ->map(fn ($m) => [
+                'mahasiswa_id' => $m->id,
+                'kelas_id' => $m->kelas_id,
+                'sesi_absensi_id' => $sesi->id,
+                'status' => 'alpa',
+                'recorded_by' => $userId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])
+            ->all();
+
+        if ($rows !== []) {
+            Absensi::insert($rows);
+        }
     }
 }

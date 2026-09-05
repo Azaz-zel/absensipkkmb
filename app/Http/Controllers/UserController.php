@@ -102,7 +102,7 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($ignoreId)],
             'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($ignoreId)],
             'password' => [$ignoreId ? 'nullable' : 'required', 'string', 'min:8'],
-            'role' => ['required', 'in:admin,pj'],
+            'role' => ['required', 'in:admin,pj,manajer'],
             'status' => ['required', 'in:aktif,nonaktif'],
             'kelas' => ['array'],
             'kelas.*' => ['integer', 'exists:kelas,id'],

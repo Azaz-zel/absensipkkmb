@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Exports\DetailKelasExport;
+use App\Exports\PoinPelanggaranExport;
 use App\Exports\RekapAbsensiExport;
 use App\Models\Absensi;
 use App\Models\Kelas;
 use App\Models\Mahasiswa;
+use App\Models\Pelanggaran;
 use App\Models\SesiAbsensi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -61,6 +63,43 @@ class ExportController extends Controller
         return response()->streamDownload(function () use ($writer) {
             $writer->save('php://output');
         }, 'rekap-absensi.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function poin(Request $request): StreamedResponse
+    {
+        $sesiId = $request->integer('sesi') ?: null;
+
+        $mahasiswa = Mahasiswa::query()
+            ->with('kelas')
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $term = $request->string('q');
+                $q->where(fn ($q) => $q->where('nama', 'like', "%{$term}%")->orWhere('nim', 'like', "%{$term}%"));
+            })
+            ->when($request->filled('kelas_id'), fn ($q) => $q->where('kelas_id', $request->integer('kelas_id')))
+            ->withCount([
+                'absensi as hadir_count' => fn ($q) => $q->where('status', 'hadir')->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId)),
+                'absensi as izin_count' => fn ($q) => $q->where('status', 'izin')->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId)),
+                'absensi as sakit_count' => fn ($q) => $q->where('status', 'sakit')->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId)),
+                'absensi as alpa_count' => fn ($q) => $q->where('status', 'alpa')->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId)),
+            ])
+            ->withSum('pelanggaran', 'poin')
+            ->orderBy('nama')
+            ->get();
+
+        $pelanggaran = Pelanggaran::whereIn('mahasiswa_id', $mahasiswa->pluck('id'))
+            ->with('pencatat')
+            ->latest()
+            ->get()
+            ->groupBy('mahasiswa_id');
+
+        $spreadsheet = (new PoinPelanggaranExport())->build($mahasiswa, $pelanggaran);
+        $writer = new Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, 'poin-pelanggaran.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }

@@ -67,7 +67,7 @@ class SesiStatusRingkasTest extends TestCase
         $response->assertSee('Dibuka');
     }
 
-    public function test_bulk_open_and_close_only_offer_a_single_semua_scope_button(): void
+    public function test_bulk_actions_use_a_checklist_instead_of_per_kategori_buttons(): void
     {
         $kelasPagi = Kelas::create(['nama_kelas' => 'A', 'kategori' => 'pagi', 'status' => 'aktif']);
         $kelasMalam = Kelas::create(['nama_kelas' => 'AA', 'kategori' => 'malam', 'status' => 'aktif']);
@@ -78,13 +78,60 @@ class SesiStatusRingkasTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'status' => 'aktif']);
         $response = $this->actingAs($admin)->get("/sesi/{$sesi->id}");
 
-        $response->assertSee('Buka Semua Kelas');
+        $response->assertSee('Pilih Kelas');
+        $response->assertSee('name="kelas_ids[]"', false);
+        $response->assertSee('Buka Absensi');
+        $response->assertSee('Tutup Absensi');
+
         $response->assertDontSee('Buka Kelas Pagi');
         $response->assertDontSee('Buka Kelas Malam');
-
-        $response->assertSee('Tutup Semua Kelas');
         $response->assertDontSee('Tutup Kelas Pagi');
         $response->assertDontSee('Tutup Kelas Malam');
+    }
+
+    public function test_checklist_offers_quick_select_for_pagi_and_malam(): void
+    {
+        $kelasPagi = Kelas::create(['nama_kelas' => 'A', 'kategori' => 'pagi', 'status' => 'aktif']);
+        $kelasMalam = Kelas::create(['nama_kelas' => 'AA', 'kategori' => 'malam', 'status' => 'aktif']);
+        $kelasPagi2 = Kelas::create(['nama_kelas' => 'B', 'kategori' => 'pagi', 'status' => 'aktif']);
+        $sesi = SesiAbsensi::create(['nama_sesi' => 'Sesi 1', 'tanggal' => now()]);
+
+        foreach ([$kelasPagi, $kelasMalam, $kelasPagi2] as $kelas) {
+            SesiKelas::create(['sesi_absensi_id' => $sesi->id, 'kelas_id' => $kelas->id, 'status' => 'belum_dibuka']);
+        }
+
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'aktif']);
+        $response = $this->actingAs($admin)->get("/sesi/{$sesi->id}");
+
+        $response->assertSee('Pilih cepat:');
+        $response->assertSee('Kelas Pagi (2)');
+        $response->assertSee('Kelas Malam (1)');
+
+        // Tiap checkbox membawa kategorinya supaya tombol pilih cepat tahu mana yang dicentang.
+        $response->assertSee('data-kategori="pagi"', false);
+        $response->assertSee('data-kategori="malam"', false);
+    }
+
+    public function test_opening_only_the_pagi_classes_leaves_malam_untouched(): void
+    {
+        $kelasPagi = Kelas::create(['nama_kelas' => 'A', 'kategori' => 'pagi', 'status' => 'aktif']);
+        $kelasMalam = Kelas::create(['nama_kelas' => 'AA', 'kategori' => 'malam', 'status' => 'aktif']);
+        $sesi = SesiAbsensi::create(['nama_sesi' => 'Sesi 1', 'tanggal' => now()]);
+
+        foreach ([$kelasPagi, $kelasMalam] as $kelas) {
+            SesiKelas::create(['sesi_absensi_id' => $sesi->id, 'kelas_id' => $kelas->id, 'status' => 'belum_dibuka']);
+        }
+
+        $admin = User::factory()->create(['role' => 'admin', 'status' => 'aktif']);
+
+        $this->actingAs($admin)->post("/sesi/{$sesi->id}/bulk", [
+            'action' => 'buka',
+            'scope' => 'terpilih',
+            'kelas_ids' => [$kelasPagi->id],
+        ])->assertRedirect();
+
+        $this->assertSame('dibuka', SesiKelas::where('kelas_id', $kelasPagi->id)->value('status'));
+        $this->assertSame('belum_dibuka', SesiKelas::where('kelas_id', $kelasMalam->id)->value('status'));
     }
 
     public function test_bulk_open_all_endpoint_still_works_with_semua_scope(): void

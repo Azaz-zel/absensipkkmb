@@ -33,6 +33,7 @@
                 class="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-gold-500 focus:outline-none focus:ring-1 focus:ring-gold-500">
             <option value="pj" @selected(old('role', $user?->role ?? 'pj') === 'pj')>PJ Kelas</option>
             <option value="admin" @selected(old('role', $user?->role) === 'admin')>Admin</option>
+            <option value="manajer" @selected(old('role', $user?->role) === 'manajer')>Manajer (Sie Kesekre)</option>
         </select>
     </div>
 

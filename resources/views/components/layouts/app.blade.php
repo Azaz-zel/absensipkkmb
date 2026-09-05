@@ -28,6 +28,7 @@
                     <span>Dashboard</span>
                 </x-sidebar-link>
 
+                @unless (auth()->user()?->isManajer())
                 <x-sidebar-link :href="route('absensi.index')" :active="request()->routeIs('absensi.*')">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -41,6 +42,16 @@
                     </svg>
                     <span>Rekap Kehadiran</span>
                 </x-sidebar-link>
+                @endunless
+
+                @if (auth()->user()?->isAdmin() || auth()->user()?->isManajer())
+                <x-sidebar-link :href="route('poin.index')" :active="request()->routeIs('poin.*')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                    <span>Poin Mahasiswa</span>
+                </x-sidebar-link>
+                @endif
 
                 @if (auth()->user()?->isAdmin())
                     <p class="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Kelola</p>
@@ -77,7 +88,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        <span>Akun PJ</span>
+                        <span>Akun Pengguna</span>
                     </x-sidebar-link>
                 @endif
             </nav>

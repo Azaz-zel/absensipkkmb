@@ -14,7 +14,7 @@
         <h2 class="font-serif text-xl font-semibold text-slate-700">Rekap Kehadiran per Kelas</h2>
     </div>
 
-    <div class="mb-5 grid grid-cols-2 gap-4 lg:gap-5">
+    <div class="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
         <x-card padded>
             <p class="text-xs font-medium text-slate-500">Total Kehadiran</p>
             <p class="mt-2 text-3xl font-semibold tracking-tight text-emerald-700">{{ $totalHadir }}</p>
@@ -22,7 +22,9 @@
         <x-card padded>
             <p class="text-xs font-medium text-slate-500">Tidak Hadir</p>
             <p class="mt-2 text-3xl font-semibold tracking-tight text-rose-700">{{ $totalTidakHadir }}</p>
+            <p class="mt-1 text-xs text-slate-400">Izin {{ $totalIzin }} &middot; Sakit {{ $totalSakit }} &middot; Alpa {{ $totalAlpa }}</p>
         </x-card>
+        <x-ringkasan-pengisian :ringkasan="$ringkasan" :sesi-terpilih="$sesiList->firstWhere('id', request()->integer('sesi'))" class="col-span-2" />
     </div>
 
     <x-card padded class="mb-5">
@@ -103,6 +105,7 @@
                         <th class="px-4 py-2.5 text-center lg:px-6">Izin</th>
                         <th class="px-4 py-2.5 text-center lg:px-6">Sakit</th>
                         <th class="px-4 py-2.5 text-center lg:px-6">Alpa</th>
+                        <th class="px-4 py-2.5 text-center lg:px-6">Belum</th>
                         <th class="px-4 py-2.5 text-center lg:px-6">%</th>
                         @if (auth()->user()->isAdmin())
                             <th class="px-4 py-2.5 text-right lg:px-6">Aksi</th>
@@ -119,6 +122,13 @@
                             <td class="px-4 py-3 text-center text-sky-700 lg:px-6">{{ $row['izin'] }}</td>
                             <td class="px-4 py-3 text-center text-amber-700 lg:px-6">{{ $row['sakit'] }}</td>
                             <td class="px-4 py-3 text-center text-rose-700 lg:px-6">{{ $row['alpa'] }}</td>
+                            <td class="px-4 py-3 text-center lg:px-6">
+                                @if ($row['belum'] > 0)
+                                    <span class="font-medium text-amber-700">{{ $row['belum'] }}</span>
+                                @else
+                                    <span class="text-emerald-600">&check;</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-center font-medium lg:px-6">{{ $row['persen'] }}%</td>
                             @if (auth()->user()->isAdmin())
                                 <td class="px-4 py-3 text-right lg:px-6">
@@ -128,10 +138,35 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-6 text-center text-slate-500">Tidak ada data.</td>
+                            <td colspan="10" class="px-4 py-6 text-center text-slate-500">Tidak ada data.</td>
                         </tr>
                     @endforelse
                 </tbody>
+                @if ($rekap->isNotEmpty())
+                    <tfoot class="border-t-2 border-slate-200 bg-slate-50/70 text-sm font-semibold text-slate-800">
+                        <tr>
+                            <td class="px-4 py-3 lg:px-6" colspan="2">Total {{ $rekap->count() }} kelas</td>
+                            <td class="px-4 py-3 text-center lg:px-6">{{ $totalMaba }}</td>
+                            <td class="px-4 py-3 text-center text-emerald-700 lg:px-6">{{ $totalHadir }}</td>
+                            <td class="px-4 py-3 text-center text-sky-700 lg:px-6">{{ $totalIzin }}</td>
+                            <td class="px-4 py-3 text-center text-amber-700 lg:px-6">{{ $totalSakit }}</td>
+                            <td class="px-4 py-3 text-center text-rose-700 lg:px-6">{{ $totalAlpa }}</td>
+                            <td class="px-4 py-3 text-center lg:px-6">
+                                @if ($ringkasan['belum_diabsen'] > 0)
+                                    <span class="text-amber-700">{{ $ringkasan['belum_diabsen'] }}</span>
+                                @else
+                                    <span class="text-emerald-600">&check;</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-center lg:px-6">
+                                {{ $ringkasan['sudah_diabsen'] > 0 ? round($totalHadir / $ringkasan['sudah_diabsen'] * 100, 1) : 0 }}%
+                            </td>
+                            @if (auth()->user()->isAdmin())
+                                <td class="px-4 py-3 lg:px-6"></td>
+                            @endif
+                        </tr>
+                    </tfoot>
+                @endif
             </table>
         </div>
     </x-card>

@@ -61,14 +61,26 @@ class RekapController extends Controller
 
         // Totals across every matching student, not just the current page.
         $matchingIds = $applyFilters(Mahasiswa::query())->pluck('id');
-        $totalHadir = Absensi::whereIn('mahasiswa_id', $matchingIds)->where('status', 'hadir')->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId))->count();
-        $totalTidakHadir = Absensi::whereIn('mahasiswa_id', $matchingIds)->whereIn('status', ['izin', 'sakit', 'alpa'])->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId))->count();
+
+        $perStatus = Absensi::whereIn('mahasiswa_id', $matchingIds)
+            ->when($sesiId, fn ($q) => $q->where('sesi_absensi_id', $sesiId))
+            ->selectRaw('status, COUNT(*) as jumlah')
+            ->groupBy('status')
+            ->pluck('jumlah', 'status');
+
+        $totalHadir = (int) $perStatus->get('hadir', 0);
+        $totalIzin = (int) $perStatus->get('izin', 0);
+        $totalSakit = (int) $perStatus->get('sakit', 0);
+        $totalAlpa = (int) $perStatus->get('alpa', 0);
+        $totalTidakHadir = $totalIzin + $totalSakit + $totalAlpa;
+
+        $ringkasan = $this->ringkasanPengisian($matchingIds->count(), $sesiId, $totalHadir + $totalTidakHadir);
 
         $kelasList = $this->kelasOptions($user)->get();
         $jurusanList = Mahasiswa::query()->select('jurusan')->distinct()->orderBy('jurusan')->pluck('jurusan');
         $sesiList = SesiAbsensi::orderByDesc('tanggal')->get();
 
-        return view('rekap.mahasiswa', compact('mahasiswa', 'kelasList', 'jurusanList', 'sesiList', 'filteredByKelas', 'totalHadir', 'totalTidakHadir', 'sort', 'kehadiran'));
+        return view('rekap.mahasiswa', compact('mahasiswa', 'kelasList', 'jurusanList', 'sesiList', 'filteredByKelas', 'totalHadir', 'totalIzin', 'totalSakit', 'totalAlpa', 'totalTidakHadir', 'ringkasan', 'sort', 'kehadiran'));
     }
 
     public function perKelas(Request $request): View
@@ -91,7 +103,9 @@ class RekapController extends Controller
             ->get()
             ->groupBy('kelas_id');
 
-        $rekap = $kelasList->map(function (Kelas $kelas) use ($counts) {
+        $jumlahSesi = $this->jumlahSesiDihitung($request->integer('sesi') ?: null);
+
+        $rekap = $kelasList->map(function (Kelas $kelas) use ($counts, $jumlahSesi) {
             $byStatus = ($counts->get($kelas->id) ?? collect())->pluck('total', 'status');
             $hadir = $byStatus->get('hadir', 0);
             $izin = $byStatus->get('izin', 0);
@@ -105,12 +119,19 @@ class RekapController extends Controller
                 'izin' => $izin,
                 'sakit' => $sakit,
                 'alpa' => $alpa,
+                'belum' => max($kelas->mahasiswa_count * $jumlahSesi - $total, 0),
                 'persen' => $total > 0 ? round($hadir / $total * 100, 1) : 0,
             ];
         });
 
         $totalHadir = $rekap->sum('hadir');
-        $totalTidakHadir = $rekap->sum(fn (array $row) => $row['izin'] + $row['sakit'] + $row['alpa']);
+        $totalIzin = $rekap->sum('izin');
+        $totalSakit = $rekap->sum('sakit');
+        $totalAlpa = $rekap->sum('alpa');
+        $totalTidakHadir = $totalIzin + $totalSakit + $totalAlpa;
+        $totalMaba = $kelasList->sum('mahasiswa_count');
+
+        $ringkasan = $this->ringkasanPengisian($totalMaba, $request->integer('sesi') ?: null, $totalHadir + $totalTidakHadir);
 
         $sort = $request->string('sort', 'kelas')->toString();
 
@@ -124,7 +145,7 @@ class RekapController extends Controller
         $sesiList = SesiAbsensi::orderByDesc('tanggal')->get();
         $allKelas = $this->kelasOptions($user)->get();
 
-        return view('rekap.kelas', compact('rekap', 'jurusanList', 'sesiList', 'allKelas', 'totalHadir', 'totalTidakHadir', 'sort'));
+        return view('rekap.kelas', compact('rekap', 'jurusanList', 'sesiList', 'allKelas', 'totalHadir', 'totalIzin', 'totalSakit', 'totalAlpa', 'totalTidakHadir', 'totalMaba', 'ringkasan', 'sort'));
     }
 
     public function detailMahasiswa(Request $request, Mahasiswa $mahasiswa): View
@@ -151,5 +172,33 @@ class RekapController extends Controller
         return Kelas::query()
             ->when(! $user->isAdmin(), fn ($q) => $q->whereIn('id', $user->kelas()->pluck('kelas.id')))
             ->orderByRaw("CASE WHEN kategori = 'pagi' THEN 0 ELSE 1 END")->orderBy('nama_kelas');
+    }
+
+    /** Berapa sesi yang sedang dihitung: 1 kalau difilter, kalau tidak semua sesi. */
+    private function jumlahSesiDihitung(?int $sesiId): int
+    {
+        return $sesiId ? 1 : SesiAbsensi::count();
+    }
+
+    /**
+     * Seberapa lengkap absensi terisi: tiap maba dikali jumlah sesi yang dihitung
+     * adalah jumlah keterangan yang seharusnya ada.
+     *
+     * @return array<string, int|float>
+     */
+    private function ringkasanPengisian(int $totalMaba, ?int $sesiId, int $sudahDiabsen): array
+    {
+        $jumlahSesi = $this->jumlahSesiDihitung($sesiId);
+        $seharusnya = $totalMaba * $jumlahSesi;
+
+        return [
+            'total_maba' => $totalMaba,
+            'jumlah_sesi' => $jumlahSesi,
+            'seharusnya' => $seharusnya,
+            'sudah_diabsen' => $sudahDiabsen,
+            'belum_diabsen' => max($seharusnya - $sudahDiabsen, 0),
+            'persen' => $seharusnya > 0 ? round($sudahDiabsen / $seharusnya * 100, 1) : 0.0,
+            'lengkap' => $seharusnya > 0 && $sudahDiabsen >= $seharusnya,
+        ];
     }
 }

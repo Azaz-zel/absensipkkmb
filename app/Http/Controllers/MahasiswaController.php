@@ -75,6 +75,21 @@ class MahasiswaController extends Controller
         return redirect()->route('mahasiswa.index')->with('success', 'Mahasiswa berhasil dihapus.');
     }
 
+    public function destroySelected(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:mahasiswa,id'],
+        ]);
+
+        $count = Mahasiswa::whereIn('id', $data['ids'])->count();
+
+        Mahasiswa::whereIn('id', $data['ids'])->delete();
+
+        return redirect()->route('mahasiswa.index')
+            ->with('success', "{$count} data mahasiswa terpilih berhasil dihapus.");
+    }
+
     public function destroyByKelas(Kelas $kelas): RedirectResponse
     {
         $count = Mahasiswa::where('kelas_id', $kelas->id)->count();

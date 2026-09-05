@@ -55,16 +55,18 @@ class RekapAbsensiExport
         $sheet->getStyle("A1:{$lastColumn}2")->getFont()->setBold(true);
         $sheet->getStyle("A1:{$lastColumn}2")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $row = 3;
+        $sesiIds = $sesiList->pluck('id')->all();
+        $rows = [];
 
         foreach ($mahasiswa as $m) {
             $total = $m->hadir_count + $m->izin_count + $m->sakit_count + $m->alpa_count;
             $persen = $total > 0 ? round($m->hadir_count / $total * 100, 1) : 0;
 
             $rowData = [$m->nama, $m->nim, $m->jurusan, $m->kelas->nama_kelas];
+            $statusesForStudent = $statusPerSesi->get($m->id, collect());
 
-            foreach ($sesiList as $sesi) {
-                $status = $statusPerSesi->get($m->id, collect())->get($sesi->id);
+            foreach ($sesiIds as $sesiId) {
+                $status = $statusesForStudent->get($sesiId);
                 $rowData[] = $status === 'hadir' ? 1 : 0;
                 $rowData[] = $status === 'izin' ? 1 : 0;
                 $rowData[] = $status === 'sakit' ? 1 : 0;
@@ -74,13 +76,22 @@ class RekapAbsensiExport
             $rowData[] = $persen.'%';
             $rowData[] = $m->poin();
 
-            $sheet->fromArray($rowData, null, "A{$row}", true);
-
-            $row++;
+            $rows[] = $rowData;
         }
 
-        foreach (range(1, max($totalColumns, 1)) as $index) {
+        // One bulk write beats thousands of per-row calls on large exports.
+        if ($rows !== []) {
+            $sheet->fromArray($rows, null, 'A3', true);
+        }
+
+        // Auto-sizing every column forces a text-width calculation per cell, which dominates
+        // the runtime on big exports. Only the text columns actually need it.
+        foreach (range(1, count($fixedHeadersBefore)) as $index) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+        }
+
+        foreach (range(count($fixedHeadersBefore) + 1, max($totalColumns, 1)) as $index) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setWidth(11);
         }
 
         return $spreadsheet;

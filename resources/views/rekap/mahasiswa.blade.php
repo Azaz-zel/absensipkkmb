@@ -19,7 +19,7 @@
         @endif
     </div>
 
-    <div class="mb-5 grid grid-cols-2 gap-4 lg:gap-5">
+    <div class="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
         <x-card padded>
             <p class="text-xs font-medium text-slate-500">Total Kehadiran</p>
             <p class="mt-2 text-3xl font-semibold tracking-tight text-emerald-700">{{ $totalHadir }}</p>
@@ -27,7 +27,9 @@
         <x-card padded>
             <p class="text-xs font-medium text-slate-500">Tidak Hadir</p>
             <p class="mt-2 text-3xl font-semibold tracking-tight text-rose-700">{{ $totalTidakHadir }}</p>
+            <p class="mt-1 text-xs text-slate-400">Izin {{ $totalIzin }} &middot; Sakit {{ $totalSakit }} &middot; Alpa {{ $totalAlpa }}</p>
         </x-card>
+        <x-ringkasan-pengisian :ringkasan="$ringkasan" :sesi-terpilih="$sesiList->firstWhere('id', request()->integer('sesi'))" class="col-span-2" />
     </div>
 
     <x-card padded class="mb-5">
@@ -149,6 +151,21 @@
                         </tr>
                     @endforelse
                 </tbody>
+                @if ($mahasiswa->count() > 0)
+                    <tfoot class="border-t-2 border-slate-200 bg-slate-50/70 text-sm font-semibold text-slate-800">
+                        <tr>
+                            <td class="px-4 py-3 lg:px-6" colspan="3">Total{{ $filteredByKelas ? '' : ' (semua hasil filter)' }}</td>
+                            <td class="px-4 py-3 text-center text-emerald-700 lg:px-6">{{ $totalHadir }}</td>
+                            <td class="px-4 py-3 text-center lg:px-6">{{ $totalIzin }}</td>
+                            <td class="px-4 py-3 text-center lg:px-6">{{ $totalSakit }}</td>
+                            <td class="px-4 py-3 text-center text-rose-700 lg:px-6">{{ $totalAlpa }}</td>
+                            <td class="px-4 py-3 text-center lg:px-6">
+                                {{ $ringkasan['sudah_diabsen'] > 0 ? round($totalHadir / $ringkasan['sudah_diabsen'] * 100, 1) : 0 }}%
+                            </td>
+                            <td class="px-4 py-3 text-center lg:px-6">&mdash;</td>
+                        </tr>
+                    </tfoot>
+                @endif
             </table>
         </div>
 

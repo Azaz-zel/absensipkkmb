@@ -68,15 +68,17 @@ class DetailKelasExport
         $sheet->getStyle("A2:{$lastColumn}3")->getFont()->setBold(true);
         $sheet->getStyle("A2:{$lastColumn}3")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $row = 4;
+        $sesiIds = $sesiList->pluck('id')->all();
+        $rows = [];
         $no = 1;
 
         foreach ($mahasiswa as $m) {
             $rowData = [$no, $m->nama, $m->nim, $m->jurusan, $kelas->nama_kelas];
             $totalPoin = 0;
+            $statusesForStudent = $statusMatrix->get($m->id, collect());
 
-            foreach ($sesiList as $sesi) {
-                $status = $statusMatrix->get($m->id, collect())->get($sesi->id);
+            foreach ($sesiIds as $sesiId) {
+                $status = $statusesForStudent->get($sesiId);
                 $rowData[] = $status === 'hadir' ? 1 : 0;
                 $rowData[] = $status === 'izin' ? 1 : 0;
                 $rowData[] = $status === 'sakit' ? 1 : 0;
@@ -87,14 +89,23 @@ class DetailKelasExport
 
             $rowData[] = $totalPoin;
 
-            $sheet->fromArray($rowData, null, "A{$row}", true);
-
-            $row++;
+            $rows[] = $rowData;
             $no++;
         }
 
-        foreach (range(1, max($totalColumns, 1)) as $index) {
+        // One bulk write beats thousands of per-row calls on large exports.
+        if ($rows !== []) {
+            $sheet->fromArray($rows, null, 'A4', true);
+        }
+
+        // Auto-sizing every column forces a text-width calculation per cell, which dominates
+        // the runtime on big exports. Only the text columns actually need it.
+        foreach (range(1, count($fixedHeadersBefore)) as $index) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+        }
+
+        foreach (range(count($fixedHeadersBefore) + 1, max($totalColumns, 1)) as $index) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setWidth(11);
         }
 
         return $spreadsheet;
