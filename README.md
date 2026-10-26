@@ -1,58 +1,56 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Absensi PKKMB INSTIKI 2026
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+- `api/` — backend Go (net/http + pgx). Auth sesi cookie, semua aturan hak akses ada di sini.
+- `web/` — frontend React + Vite.
+- `supabase/` — skema database (migrasi) untuk Supabase/Postgres.
 
-## About Laravel
+## Jalankan lokal
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Butuh Docker, Go, dan Node.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```sh
+# 1. Database (Supabase lokal)
+.tools/supabase/supabase.exe start -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,mailpit
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+# 2. API  (salin api/.env.example lalu isi; set variabelnya di shell)
+cd api
+DATABASE_URL=postgresql://app_api:app_api_local_dev@127.0.0.1:54322/postgres COOKIE_SECURE=false go run .
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+# 3. Frontend (proxy /api ke :8080)
+cd web && npm install && npm run dev   # http://localhost:5173
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Supabase CLI tidak ikut di repo (`.tools/` diabaikan git). Unduh binarinya dari rilis `supabase/cli`.
 
-## Contributing
+## Pindah data dari MySQL Laravel lama
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Database tujuan harus kosong. Sumber hanya dibaca.
 
-## Code of Conduct
+```sh
+cd api
+go run ./cmd/migrasi -mysql "root:@tcp(127.0.0.1:3306)/absensipkkmb" -pg "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Password lama (bcrypt Laravel) tetap bisa dipakai login.
 
-## Security Vulnerabilities
+## Database demo lokal
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`absensi_demo` adalah salinan data hasil migrasi untuk mencoba UI. Semua akunnya diberi kata sandi lokal `demo12345` (khusus database ini, bukan password asli). Jalankan API dengan `DATABASE_URL=postgresql://app_api:app_api_local_dev@127.0.0.1:54322/absensi_demo`.
 
-## License
+## Tes
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Tes integrasi + keamanan jalan di database terpisah `absensi_test` (tes menolak database lain).
+
+```sh
+docker exec supabase_db_absensipkkmb psql -U postgres -c "create database absensi_test"
+docker exec -i supabase_db_absensipkkmb psql -U postgres -d absensi_test < supabase/migrations/20261026000001_schema.sql
+docker exec supabase_db_absensipkkmb psql -U postgres -d absensi_test -c "grant connect on database absensi_test to app_api"
+cd api && go test ./...
+```
+
+## Produksi
+
+- `npm run build` di `web/`, lalu jalankan API dengan `WEB_DIST=../web/dist` supaya satu origin.
+- Jalankan di belakang HTTPS dan biarkan `COOKIE_SECURE=true` (cookie jadi `__Host-sid`).
+- Di Supabase cloud: terapkan migrasi, set password role `app_api` lewat SQL editor, pakai connection string pooler dengan user `app_api.<project-ref>`.
+- Semua tabel memakai RLS dan tertutup untuk `anon`/`authenticated`, jadi anon key Supabase tidak bisa membaca data.
