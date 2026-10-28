@@ -39,15 +39,15 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
-.bg {
-  min-height: 100dvh;
-  padding: 24px;
+.bg { min-height: 100dvh; padding: 24px; }
+/* Gradien di layer fixed sendiri: dikomposit GPU, tidak di-repaint tiap scroll seperti background-attachment: fixed. */
+.bg::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
     radial-gradient(55% 45% at 6% 0%, #F9D8C2 0%, rgba(249, 216, 194, 0) 70%),
     radial-gradient(45% 55% at 100% 12%, #DCD0F7 0%, rgba(220, 208, 247, 0) 70%),
     radial-gradient(55% 45% at 55% 100%, #CDE8DF 0%, rgba(205, 232, 223, 0) 70%),
     #F4F1F5;
-  background-attachment: fixed;
 }
 a { color: var(--plum); }
 a:hover { color: var(--plum-dark); }
@@ -59,10 +59,9 @@ html { scrollbar-color: rgba(107, 63, 115, .35) transparent; }
 input, textarea { caret-color: var(--plum); }
 ::placeholder { color: var(--placeholder); }
 
+/* Tanpa backdrop-filter: di bawahnya cuma gradien lembut (blur tak terlihat), dan blur bertumpuk shell+kartu bikin scroll berat. */
 .glass {
   background: var(--glass);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  backdrop-filter: blur(22px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, .78);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 12px 32px -20px rgba(70, 40, 90, .4);
 }
@@ -211,6 +210,8 @@ select.field.round { width: auto; border-radius: 999px; padding-right: 32px; }
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
   background: var(--glass-strong);
 }
+/* Blur hanya untuk bar yang melayang di atas konten yang bergerak. */
+.floatbar, .tabbar { -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); }
 
 /* ---------- Dialog ---------- */
 dialog.modal {
@@ -257,9 +258,7 @@ dialog.modal[open] { animation: pop .2s var(--ease-out); }
   .toast { bottom: calc(92px + env(safe-area-inset-bottom)); }
   .search input, .field { font-size: 16px; }
   .hide-m { display: none !important; }
-  /* Kaca lebih ringan di HP: blur besar + background fixed berat untuk GPU ponsel murah. */
-  .bg { background-attachment: scroll; }
-  .glass { -webkit-backdrop-filter: blur(12px) saturate(140%); backdrop-filter: blur(12px) saturate(140%); }
+  .floatbar, .tabbar { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
   .pill.sm, .ghost { min-height: 40px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Filter jadi satu baris geser, bukan tumpukan dropdown. */
